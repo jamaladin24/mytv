@@ -1,0 +1,252 @@
+package com.example.iptvapp
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.media.AudioManager
+import android.net.Uri
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var playerView: PlayerView
+    private lateinit var tvStatus: TextView
+    private lateinit var touchContainer: FrameLayout
+    private var player: ExoPlayer? = null
+
+    private lateinit var audioManager: AudioManager
+    private lateinit var sharedPreferences: SharedPreferences
+    private lateinit var gestureDetector: GestureDetector
+
+    private var currentChannelIndex = 0
+    private val hideHandler = Handler(Looper.getMainLooper())
+    private val hideRunnable = Runnable { tvStatus.visibility = View.GONE }
+
+    // بارگذاری لیست شبکه‌ها از فایل M3U شما
+    private val channels = listOf(
+        Channel("Spedatv HD", "https://speda1.site/upload/images/spedahd.m3u8"),
+        Channel("Spedadrama HD", "https://speda2.site/upload/images/spedadrama.m3u8"),
+        Channel("Payamtv HD", "https://media2.streambrothers.com:1936/8218/8218/playlist.m3u8"),
+        Channel("Kurdsat HD", "https://hlspackager.akamaized.net/live/DB/KURDSAT_HD/HLS/KURDSAT_HD-avc1_2500000=10002,mp4a_128000=20000.m3u8"),
+        Channel("Rudaw TV", "https://live.rudaw.net/hls/rudaw-tv/master.m3u8"),
+        Channel("NRT HD", "https://hlspackager.akamaized.net/live/DB/NRT_HD/HLS/NRT_HD-avc1_2500000=10002,mp4a_128000=20000.m3u8"),
+        Channel("Kurdsat News", "https://hlspackager.akamaized.net/live/DB/KURDSAT_NEWS/HLS/KURDSAT_NEWS-avc1_2500000=10002,mp4a_128000=20000.m3u8"),
+        Channel("Channel 8 Kurdish", "https://live.channel8.com/Channel8-Kurdish/tracks-v4a1/mono.m3u8"),
+        Channel("Bangawaz TV", "http://bangawaztv.ddns.net:40/live/bangawaztv/playlist.m3u8"),
+        Channel("Live Stream 3268", "https://app-live.org/live/3268334b/index.m3u8"),
+        Channel("AVA TV", "http://hlspackager.akamaized.net/live/DB/AVA_TV/HLS/AVA_TV-avc1_2500000=10002,mp4a_128000=20000.m3u8"),
+        Channel("Welat TV", "http://stream.welattv.net:1935/welat/tv/playlist.m3u8"),
+        Channel("Halabja 88", "https://media2.streambrothers.com:1936/8218/8218/halabja88.m3u8"),
+        Channel("Zagros 24", "https://hlspackager.akamaized.net/live/DB/ZAGROS_24/HLS/ZAGROS_24-avc1_2500000=10002,mp4a_128000=20000.m3u8"),
+        Channel("GK Sat", "https://live.host247.net/gk/gksat/chunklist_w1358946070.m3u8"),
+        Channel("Kirkuk Live", "https://live.kirkuklive.live/hls/stream/index.m3u8"),
+        Channel("Kurdistan 24 (K24)", "https://hlspackager.akamaized.net/live/DB/K24/HLS/K24-avc1_2500000=10002,mp4a_128000=20000.m3u8"),
+        Channel("Rojhelat TV", "https://hlspackager.akamaized.net/live/DB/ROJHELAT/HLS/ROJHELAT-avc1_2500000=10002,mp4a_128000=20000.m3u8"),
+        Channel("Kurdistan TV", "https://5a3ed7a72ed4b.streamlock.net/live/SMIL:myStream.smil/chunklist_w735693271_b1700000_sleng_t64MTA4MHA=.m3u8"),
+        Channel("Zagros TV", "https://5a3ed7a72ed4b.streamlock.net/zagrostv/SMIL:myStream.smil/chunklist.m3u8"),
+        Channel("Zhin Film", "https://183.bozztv.com/giatv/giatv-zhinfilm/zhinfilm/playlist.m3u8"),
+        Channel("Znar Food", "https://live20.bozztv.com/giatv/giatv-znarfood/znarfood/playlist.m3u8"),
+        Channel("Avar TV", "http://avrstream.com:1935/live/AvarTv/playlist.m3u8"),
+        Channel("Sada TV HD", "http://sada-hd.ddns.net:40/live/sadatv/index.m3u8?checkedby:Halabja88"),
+        Channel("Halabja TV", "http://test247.ddns.net/live/halabjatv/index.m3u8"),
+        Channel("Eurokurd TV", "http://baskhd.ddns.net:40/live/Eurokurd/index.m3u8"),
+        Channel("Khak TV HD", "http://khakhd.ddns.net:1935/stream/khakhd/playlist.m3u8"),
+        Channel("Soran Entertainment", "http://avrstream.com:1935/live/SoranEntertainment/playlist.m3u8"),
+        Channel("Shna TV", "http://shnatv.ddns.net:1935/live/shnatv/playlist.m3u8"),
+        Channel("Rawshan TV", "http://rawshan.ddns.net:1935/live/rawshantv/playlist.m3u8"),
+        Channel("Dunya HD", "http://dunyahd.ddns.net/live/DunyaHd/index.m3u8"),
+        Channel("Afarin TV", "http://afarintv.flashmediacast.com:1935/afarinTV/livestream/chunklist_w1505309502.m3u8?nimblesessionid=574377&"),
+        Channel("Afarin Kids / D1", "http://afarintv2.flashmediacast.com:1935/afarinTV/d1/livestream/playlist.m3u8"),
+        Channel("Mihrab FM", "http://bblserver.ddns.net:1935/live/mihrabfm/playlist.m3u8"),
+        Channel("IMK HD", "http://imkhd.ddns.net:1935/live/imkhd/playlist.m3u8"),
+        Channel("Halabja 88 Soran FM", "https://live20.bozztv.com/giatv/giatv-halabja88soranfm/halabja88soranfm/chunks.m3u8"),
+        Channel("Farmoda TV", "http://avrstream.com:1935/live/FarmodaTV/playlist.m3u8"),
+        Channel("Mihrab TV", "http://baskhd.ddns.net:40/live/MihrabTV/playlist.m3u8?checkedby:Halabja88"),
+        Channel("One Plus 4K", "https://lbgo.bozztv.com/ssh101/ssh101/oneplus4k/chunks.m3u8"),
+        Channel("Ala HD", "http://avrstream.com:1935/live/ala-hd/playlist.m3u8"),
+        Channel("Znar Kids", "https://live20.bozztv.com/giatv/giatv-znarkids/znarkids/chunks.m3u8"),
+        Channel("GK Plus", "http://test247.ddns.net/gkpluse/index.m3u8"),
+        Channel("Derin TV", "http://baskhd.ddns.net:40/live/Derin/index.m3u8?checkedby:Halabja88"),
+        Channel("Shar Quran TV", "https://live20.bozztv.com/giatv/giatv-sharqurantv/sharqurantv/chunks.m3u8"),
+        Channel("Shar TV", "http://avrstream.com:1935/live/SHARTV/playlist.m3u8"),
+        Channel("Zarok TV (Sorani)", "https://zindisorani.zaroktv.com.tr/hls/0/stream.m3u8"),
+        Channel("Kidco HD", "http://avrstream.com:1935/live/kidcohd/playlist.m3u8"),
+        Channel("Biner Zaxo", "https://cdn.karwan.tv/biner-zaxo/index.m3u8"),
+        Channel("Infinity TV", "https://cdn.karwan.tv/infinity-tv/index.m3u8"),
+        Channel("Parwarda Suli", "https://183.bozztv.com/giatv/giatv-parwardasuli/parwardasuli/playlist.m3u8"),
+        Channel("Parwardayi Hawler", "https://parwarda.unitedmixmedia.tv/Parwardayi_Hawler/tracks-v2a1/mono.m3u8"),
+        Channel("Parwardayi Duhok", "https://parwarda.unitedmixmedia.tv/Parwardayi_Duhok/tracks-v2a1/mono.m3u8"),
+        Channel("Al Iraqia Kurdish", "https://imn-live.esite-lab.com/hls/iraqia-kurdish.m3u8"),
+        Channel("MMN HD Show", "http://mmn.mypsx.net:1935/live/mmnhddshow/playlist.m3u8"),
+        Channel("MMN HD News", "http://mmn.mypsx.net:1935/live/mmnhdnews/playlist.m3u8"),
+        Channel("MMN HD Drama", "http://mmn.mypsx.net:1935/live/mmnhddrama/playlist.m3u8"),
+        Channel("MMN HD Action", "http://mmn.mypsx.net:1935/live/mmnhdaction/playlist.m3u8"),
+        Channel("MMN HD Movies", "http://mmn.mypsx.net:1935/live/mmnhdmovies/playlist.m3u8"),
+        Channel("MMN HD Quran", "http://mmn.mypsx.net:1935/live/mmnhdquran/playlist.m3u8"),
+        Channel("MMN HD Documentary", "http://mmn.mypsx.net:1935/live/mmnhddocumentary/playlist.m3u8"),
+        Channel("Halabja 88 Garyan", "https://live20.bozztv.com/giatv/giatv-halabja88garyan/halabja88garyan/chunks.m3u8"),
+        Channel("Mix Kurdy", "http://avrstream.com:1935/live/Mix-kurdy/playlist.m3u8"),
+        Channel("Wella TV", "https://cdn.karwan.tv/wallatv/index.m3u8"),
+        Channel("Eman TV", "http://avrstream.com:1935/live/emantv/playlist.m3u8"),
+        Channel("Hormzyar HD", "http://avrstream.com:1935/live/HormzyarHD/playlist.m3u8"),
+        Channel("Soze TV", "https://live20.bozztv.com/giatv/giatv-sozetv/sozetv/chunks.m3u8"),
+        Channel("Waar TV", "https://live.kwikmotion.com/waarmedialive/waarmedia.smil/waarmediapublish/waarmedia_source/chunks.m3u8"),
+        Channel("NU TV", "https://hlspackager.akamaized.net/live/DB/NU_TV/HLS/NU_TV-avc1_2500000=10002,mp4a_128000=20000.m3u8"),
+        Channel("Niroj TV", "https://cdn.karwan.tv/niroj-tv/index.m3u8"),
+        Channel("Ashti TV", "http://avrstream.com:1935/live/AshtiTV/playlist.m3u8"),
+        Channel("Ashti TV Family", "https://cdn.karwan.tv/ashti-tv-family/index.m3u8"),
+        Channel("Esra HD", "https://live20.bozztv.com/giatv/giatv-ESRAHD/ESRAHD/chunks.m3u8"),
+        Channel("Esra 2 HD", "https://live20.bozztv.com/giatv/giatv-esra2hd_kamalblbas/esra2hd_kamalblbas/chunks.m3u8"),
+        Channel("Rasoulallah TV", "http://avrstream.com:1935/live/rasoulallahtv/playlist.m3u8"),
+        Channel("Baby Shark TV", "https://newidco-babysharktv-1-gb.lg.wurl.tv/playlist.m3u8"),
+        Channel("SMC Kids / TJ Kids", "https://live.kwikmotion.com/smckidslive/tjkids1.smil/smckidspublish/tjkids1_source/chunks.m3u8"),
+        Channel("Roya Kids", "https://playlist.fasttvcdn.com/pl/ptllxjd03j6g9oxxjdfapg/roya-kids-originals/playlist.m3u8"),
+        Channel("Super KRD Kids", "https://super.krd/live/kids.m3u8"),
+        Channel("Animal Box", "https://live20.bozztv.com/giatv/giatv-animalbox/animalbox/chunks.m3u8"),
+        Channel("WildEarth", "https://wildearth-plex.amagi.tv/masterR1080p.m3u8"),
+        Channel("DocuBox", "https://dash3.antik.sk/live/test_docubox_medium_atk/playlist.m3u8"),
+        Channel("Fishing TV", "https://fms.premio.link/fishingtv/playlist.m3u8"),
+        Channel("Travelxp", "https://travelxp-travelxp-1-eu.rakuten.wurl.tv/playlist.m3u8"),
+        Channel("Saudi Quran Live", "http://m.live.net.sa:1935/live/quran/quran.m3u8"),
+        Channel("Al Jazeera Arabic", "https://live-hls-web-aja.getaj.net/AJA/01.m3u8"),
+        Channel("Al Arabiya 1080p", "https://live.alarabiya.net/alarabiapublish/alarabiya.smil/alarabiapublish/alarabiya_1080p/chunks.m3u8"),
+        Channel("Al Hadath 1080p", "https://live.alarabiya.net/alarabiapublish/alhadath.smil/alarabiapublish/alhadath_1080p/chunks.m3u8"),
+        Channel("Al Jazeera English", "https://live-hls-web-aje-gcp.thehlive.com/AJE/01.m3u8"),
+        Channel("BBC News HD", "https://vs-hls-push-ww-live.akamaized.net/x=4/i=urn:bbc:pips:service:bbc_news_channel_hd/t=3840/v=pv14/b=5070016/main.m3u8"),
+        Channel("MBC Persia HD", "https://hls.mbcpersia.live/hls/stream.m3u8"),
+        Channel("MBC Action", "https://flu.systemnet.tv/MBCAction/tracks-v1a1/mono.m3u8")
+    )
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        setContentView(R.layout.activity_main)
+
+        playerView = findViewById(R.id.playerView)
+        tvStatus = findViewById(R.id.tvStatus)
+        touchContainer = findViewById(R.id.mainTouchContainer)
+
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        sharedPreferences = getSharedPreferences("IPTV_PREFS", Context.MODE_PRIVATE)
+
+        // ۱. بازیابی آخرین شبکه پخش‌شده
+        currentChannelIndex = sharedPreferences.getInt("LAST_PLAYED_INDEX", 0)
+        if (currentChannelIndex !in channels.indices) {
+            currentChannelIndex = 0
+        }
+
+        setupGestures()
+    }
+
+    private fun setupGestures() {
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            
+            // با یک تک‌ضربه کانال عوض می‌شود
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                nextChannel()
+                return true
+            }
+
+            // کشیدن دست به چپ (کاهش صدا) یا راست (افزایش صدا)
+            override fun onScroll(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                distanceX: Float,
+                distanceY: Float
+            ): Boolean {
+                if (e1 == null) return false
+                val diffX = e2.x - e1.x
+
+                // حساسیت اسکرول
+                if (Math.abs(diffX) > 40) {
+                    if (distanceX < 0) {
+                        adjustVolume(true)  // کشیدن به راست: زیاد کردن صدا
+                    } else if (distanceX > 0) {
+                        adjustVolume(false) // کشیدن به چپ: کم کردن صدا
+                    }
+                }
+                return true
+            }
+        })
+
+        touchContainer.setOnTouchListener { _, event ->
+            gestureDetector.onTouchEvent(event)
+            true
+        }
+    }
+
+    private fun adjustVolume(increase: Boolean) {
+        val direction = if (increase) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
+        audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, 0)
+
+        val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val percent = (currentVol.toFloat() / maxVol.toFloat() * 100).toInt()
+
+        showToastOverlay("🔊 صدا: $percent%")
+    }
+
+    private fun nextChannel() {
+        currentChannelIndex = (currentChannelIndex + 1) % channels.size
+        playChannel(currentChannelIndex)
+    }
+
+    private fun playChannel(index: Int) {
+        val channel = channels[index]
+        showToastOverlay("📺 ${channel.name}")
+
+        // ذخیره اندیس آخرین کانال
+        sharedPreferences.edit().putInt("LAST_PLAYED_INDEX", index).apply()
+
+        val mediaItem = MediaItem.fromUri(Uri.parse(channel.url))
+        player?.setMediaItem(mediaItem)
+        player?.prepare()
+        player?.play()
+    }
+
+    private fun showToastOverlay(text: String) {
+        tvStatus.text = text
+        tvStatus.visibility = View.VISIBLE
+        hideHandler.removeCallbacks(hideRunnable)
+        hideHandler.postDelayed(hideRunnable, 2000)
+    }
+
+    private fun initPlayer() {
+        if (player == null) {
+            player = ExoPlayer.Builder(this).build().apply {
+                playerView.player = this
+                playWhenReady = true
+                addListener(object : Player.Listener {
+                    override fun onPlayerError(error: PlaybackException) {
+                        showToastOverlay("خطا در بارگذاری استریم")
+                    }
+                })
+            }
+            playChannel(currentChannelIndex)
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        initPlayer()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        player?.release()
+        player = null
+    }
+}
